@@ -122,6 +122,7 @@
     cursor: grab;
     overflow: hidden;
     transition: box-shadow .1s;
+    touch-action: none;
   }
   .card.face-down {
     background: repeating-linear-gradient(
@@ -424,8 +425,9 @@ function attachDragStart(el, src) {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.preventDefault();
     e.stopPropagation();
+    el.setPointerCapture(e.pointerId);
     startDrag(e, src, el);
-  });
+  }, { passive: false });
 }
 
 function startDrag(e, src, triggerEl) {
@@ -472,6 +474,7 @@ function startDrag(e, src, triggerEl) {
 
 function onDragMove(e) {
   if (!dragGhost) return;
+  e.preventDefault();
   dragGhost.style.left = (e.clientX - dragOX) + 'px';
   dragGhost.style.top  = (e.clientY - dragOY) + 'px';
 
