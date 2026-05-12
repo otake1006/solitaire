@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ソリティア</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #1a6b3c;
+    font-family: 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ─── TITLE ─── */
+  #title-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 32px;
+  }
+  #title-screen h1 {
+    font-size: 64px;
+    color: #fff;
+    text-shadow: 2px 4px 8px rgba(0,0,0,.4);
+    letter-spacing: 4px;
+  }
+  #title-screen p { color: #c8e6c9; font-size: 18px; }
+
+  .btn {
+    padding: 14px 48px;
+    font-size: 20px;
+    background: #fff;
+    color: #1a6b3c;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    font-weight: 700;
+    box-shadow: 0 4px 16px rgba(0,0,0,.25);
+    transition: transform .1s, box-shadow .1s;
+  }
+  .btn:hover  { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.35); }
+  .btn:active { transform: translateY(0);    box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+
+  .title-cards { display: flex; gap: 12px; }
+  .deco-card {
+    width: 60px; height: 90px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 2px 4px 10px rgba(0,0,0,.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+  }
+
+  /* ─── GAME ─── */
+  #game-screen { display: none; padding: 16px; }
+
+  .top-bar {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 16px;
+  }
+  .top-bar h2 { color: #fff; font-size: 22px; flex: 1; }
+  .score-box {
+    color: #c8e6c9; font-size: 15px;
+    background: rgba(0,0,0,.2);
+    padding: 6px 16px; border-radius: 20px;
+  }
+  .btn-small {
+    padding: 7px 20px; font-size: 14px;
+    background: rgba(255,255,255,.9); color: #1a6b3c;
+    border: none; border-radius: 20px;
+    cursor: pointer; font-weight: 600;
+    transition: background .15s;
+  }
+  .btn-small:hover { background: #fff; }
+
+  /* ─── TABLE ─── */
+  #table { max-width: 840px; margin: 0 auto; }
+
+  .top-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .pile-slot {
+    width: 100%;
+    aspect-ratio: 0.69;
+    border: 2px dashed rgba(255,255,255,.3);
+    border-radius: 10px;
+    position: relative;
+    cursor: default;
+    transition: border-color .15s, background .15s;
+  }
+  .pile-slot.drop-over {
+    border-color: #ffeb3b;
+    background: rgba(255,235,59,.15);
+  }
+
+  #stock { cursor: pointer; }
+
+  .foundation-label {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; opacity: .35;
+    pointer-events: none;
+  }
+
+  /* ─── CARD ─── */
+  .card {
+    position: absolute;
+    width: 100%; height: 100%;
+    background: #fff;
+    border-radius: 9px;
+    box-shadow: 1px 2px 6px rgba(0,0,0,.25);
+    cursor: grab;
+    overflow: hidden;
+    transition: box-shadow .1s;
+    touch-action: none;
+  }
+  .card.face-down {
+    background: repeating-linear-gradient(
+      135deg, #1565c0 0px, #1565c0 6px, #1976d2 6px, #1976d2 12px
+    );
+    cursor: default;
+  }
+  .card.drag-src { opacity: 0.25; cursor: default; pointer-events: none; }
+
+  .card-inner {
+    position: absolute; inset: 0;
+    padding: 5px 6px;
+    display: flex; flex-direction: column;
+  }
+  .card-rank { font-size: 15px; font-weight: 700; line-height: 1; }
+  .card-suit-top { font-size: 13px; line-height: 1; }
+  .card-center {
+    flex: 1; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 32px;
+  }
+  .card-bottom { transform: rotate(180deg); display: flex; flex-direction: column; }
+  .red  .card-rank, .red  .card-suit-top { color: #c62828; }
+  .black .card-rank, .black .card-suit-top { color: #212121; }
+
+  /* ─── GHOST ─── */
+  #drag-ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 999;
+    transform-origin: top left;
+    filter: drop-shadow(3px 6px 12px rgba(0,0,0,.45));
+  }
+  #drag-ghost .card {
+    position: absolute; left: 0;
+    box-shadow: none;
+    cursor: grabbing;
+  }
+
+  /* ─── TABLEAU ─── */
+  .tableau-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+  }
+  .tableau-col { position: relative; min-height: 120px; }
+  .tableau-col .pile-slot {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 0; padding-bottom: 144.9%;
+    aspect-ratio: unset;
+  }
+  .tableau-col .card {
+    position: absolute; left: 0; right: 0;
+    width: 100%; height: 0; padding-bottom: 144.9%;
+  }
+
+  /* ─── WIN ─── */
+  #win-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.55);
+    align-items: center; justify-content: center;
+    flex-direction: column; gap: 24px; z-index: 100;
+  }
+  #win-overlay h2 { color: #fff; font-size: 52px; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
+  #win-overlay p  { color: #c8e6c9; font-size: 20px; }
+</style>
+</head>
+<body>
+
+<!-- TITLE -->
+<div id="title-screen">
+  <div class="title-cards">
+    <div class="deco-card">♠</div>
+    <div class="deco-card">♥</div>
+    <div class="deco-card">♦</div>
+    <div class="deco-card">♣</div>
+  </div>
+  <h1>SOLITAIRE</h1>
+  <p>クロンダイク・ソリティア</p>
+  <button class="btn" onclick="startGame()">ゲームスタート</button>
+</div>
+
+<!-- GAME -->
+<div id="game-screen">
+  <div class="top-bar">
+    <h2>♠ Solitaire</h2>
+    <div class="score-box">スコア: <span id="score">0</span></div>
+    <button class="btn-small" onclick="newGame()">新しいゲーム</button>
+    <button class="btn-small" onclick="goTitle()">タイトルへ</button>
+  </div>
+  <div id="table">
+    <div class="top-row">
+      <div class="pile-slot" id="stock"></div>
+      <div class="pile-slot" id="waste"></div>
+      <div class="pile-slot" style="border:none;"></div>
+      <div class="pile-slot" id="f0" data-drop="foundation" data-fi="0"><span class="foundation-label">♠</span></div>
+      <div class="pile-slot" id="f1" data-drop="foundation" data-fi="1"><span class="foundation-label">♥</span></div>
+      <div class="pile-slot" id="f2" data-drop="foundation" data-fi="2"><span class="foundation-label">♦</span></div>
+      <div class="pile-slot" id="f3" data-drop="foundation" data-fi="3"><span class="foundation-label">♣</span></div>
+    </div>
+    <div class="tableau-row" id="tableau-row"></div>
+  </div>
+</div>
+
+<!-- WIN -->
+<div id="win-overlay">
+  <h2>🎉 クリア！</h2>
+  <p id="win-score"></p>
+  <button class="btn" onclick="newGame()">もう一度</button>
+  <button class="btn" style="background:#c8e6c9;" onclick="goTitle()">タイトルへ</button>
+</div>
+
+<script>
+// ════════════════════════════════
+//  CONSTANTS & STATE
+// ════════════════════════════════
+const SUITS     = ['♠','♥','♦','♣'];
+const SUIT_COLOR = { '♠':'black','♣':'black','♥':'red','♦':'red' };
+const RANKS     = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const FD_OFFSET  = 18;  // face-down stack offset (px)
+const FU_OFFSET  = 28;  // face-up stack offset (px)
+
+let stock, waste, foundations, tableau, score;
+
+// ── drag state ──
+let dragSrc   = null;   // { type:'waste'|'tableau', col?, idx? }
+let dragCards = null;   // cards lifted out of state
+let dragGhost = null;   // DOM element
+let dragOX = 0, dragOY = 0;  // pointer offset inside first card
+let currentDropEl = null;   // element currently highlighted
+
+// ════════════════════════════════
+//  DECK / INIT
+// ════════════════════════════════
+function newDeck() {
+  const deck = [];
+  for (const s of SUITS)
+    for (let r = 0; r < 13; r++)
+      deck.push({ suit: s, rank: r, faceUp: false });
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+
+function initState() {
+  const deck = newDeck();
+  tableau = Array.from({ length: 7 }, () => []);
+  let idx = 0;
+  for (let col = 0; col < 7; col++) {
+    for (let row = 0; row <= col; row++) tableau[col].push(deck[idx++]);
+    tableau[col].at(-1).faceUp = true;
+  }
+  stock      = deck.slice(idx).reverse();
+  waste      = [];
+  foundations = [[], [], [], []];
+  score      = 0;
+  dragSrc    = null;
+  dragCards  = null;
+}
+
+// ════════════════════════════════
+//  CARD ELEMENT FACTORY
+// ════════════════════════════════
+function makeCardEl(card, { w, h, top } = {}) {
+  const div = document.createElement('div');
+  div.className = 'card' + (card.faceUp ? ' ' + SUIT_COLOR[card.suit] : ' face-down');
+
+  if (w !== undefined) {
+    div.style.width  = w + 'px';
+    div.style.height = h + 'px';
+    div.style.position = 'absolute';
+    div.style.left = '0';
+    if (top !== undefined) div.style.top = top + 'px';
+  }
+
+  if (card.faceUp) {
+    div.innerHTML = `
+      <div class="card-inner">
+        <div class="card-rank">${RANKS[card.rank]}</div>
+        <div class="card-suit-top">${card.suit}</div>
+        <div class="card-center">${card.suit}</div>
+        <div class="card-bottom">
+          <div class="card-rank">${RANKS[card.rank]}</div>
+          <div class="card-suit-top">${card.suit}</div>
+        </div>
+      </div>`;
+  }
+  return div;
+}
+
+// ════════════════════════════════
+//  RENDER
+// ════════════════════════════════
+function render() {
+  renderStock();
+  renderWaste();
+  renderFoundations();
+  renderTableau();
+  document.getElementById('score').textContent = score;
+}
+
+function renderStock() {
+  const el = document.getElementById('stock');
+  el.innerHTML = '';
+  if (stock.length > 0) {
+    const c = makeCardEl({ faceUp: false });
+    c.style.top = '0'; c.style.height = '100%'; c.style.width = '100%';
+    c.style.position = 'absolute';
+    c.style.cursor = 'pointer';
+    el.appendChild(c);
+  } else {
+    el.innerHTML = '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.5);font-size:28px;cursor:pointer;">↺</div>';
+  }
+  el.onclick = drawCard;
+}
+
+function renderWaste() {
+  const el = document.getElementById('waste');
+  el.innerHTML = '';
+  if (waste.length === 0) return;
+
+  const top   = waste.at(-1);
+  const isDragging = dragSrc?.type === 'waste';
+  const c = makeCardEl(top);
+  c.style.top = '0'; c.style.height = '100%'; c.style.width = '100%';
+  c.style.position = 'absolute';
+  if (isDragging) c.classList.add('drag-src');
+  if (!isDragging) attachDragStart(c, { type: 'waste' });
+  el.appendChild(c);
+}
+
+function renderFoundations() {
+  for (let f = 0; f < 4; f++) {
+    const el  = document.getElementById('f' + f);
+    const lbl = el.querySelector('.foundation-label');
+    [...el.children].forEach(ch => { if (ch !== lbl) ch.remove(); });
+    if (foundations[f].length === 0) continue;
+    const top = foundations[f].at(-1);
+    const c = makeCardEl(top);
+    c.style.top = '0'; c.style.height = '100%'; c.style.width = '100%';
+    c.style.position = 'absolute';
+    c.style.cursor = 'default';
+    el.insertBefore(c, lbl);
+  }
+}
+
+function renderTableau() {
+  const row = document.getElementById('tableau-row');
+  row.innerHTML = '';
+
+  for (let col = 0; col < 7; col++) {
+    const colEl = document.createElement('div');
+    colEl.className = 'tableau-col';
+
+    const slot = document.createElement('div');
+    slot.className = 'pile-slot';
+    slot.dataset.drop = 'tableau';
+    slot.dataset.col  = col;
+    slot.style.cssText = 'position:absolute;top:0;left:0;right:0;height:0;padding-bottom:144.9%;';
+    colEl.appendChild(slot);
+
+    const cards = tableau[col];
+    let offsetPx = 0;
+
+    for (let i = 0; i < cards.length; i++) {
+      const c      = cards[i];
+      const isDrag = dragSrc?.type === 'tableau' && dragSrc.col === col && i >= dragSrc.idx;
+
+      const div = makeCardEl(c);
+      div.style.cssText = `position:absolute;top:${offsetPx}px;left:0;right:0;width:100%;height:0;padding-bottom:144.9%;`;
+
+      if (isDrag) {
+        div.classList.add('drag-src');
+      } else if (c.faceUp) {
+        // data attributes for drop detection
+        div.dataset.drop = 'tableau';
+        div.dataset.col  = col;
+        attachDragStart(div, { type: 'tableau', col, idx: i });
+      }
+
+      colEl.appendChild(div);
+      offsetPx += c.faceUp ? FU_OFFSET : FD_OFFSET;
+    }
+
+    const spacer = document.createElement('div');
+    spacer.style.height = (offsetPx + 120) + 'px';
+    colEl.appendChild(spacer);
+
+    row.appendChild(colEl);
+  }
+}
+
+// ════════════════════════════════
+//  DRAG & DROP
+// ════════════════════════════════
+function attachDragStart(el, src) {
+  el.addEventListener('pointerdown', e => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    e.preventDefault();
+    e.stopPropagation();
+    el.setPointerCapture(e.pointerId);
+    startDrag(e, src, el);
+  }, { passive: false });
+}
+
+function startDrag(e, src, triggerEl) {
+  // lift cards out of state
+  if (src.type === 'waste') {
+    dragCards = [waste.pop()];
+  } else {
+    dragCards = tableau[src.col].splice(src.idx);
+  }
+  dragSrc = src;
+
+  // measure actual card size
+  const rect = triggerEl.getBoundingClientRect();
+  const cw   = rect.width;
+  const ch   = rect.height;
+
+  dragOX = e.clientX - rect.left;
+  dragOY = e.clientY - rect.top;
+
+  // build ghost
+  const ghost = document.createElement('div');
+  ghost.id = 'drag-ghost';
+  const totalH = (dragCards.length - 1) * FU_OFFSET + ch;
+  ghost.style.width  = cw + 'px';
+  ghost.style.height = totalH + 'px';
+  ghost.style.left   = (e.clientX - dragOX) + 'px';
+  ghost.style.top    = (e.clientY - dragOY) + 'px';
+
+  dragCards.forEach((card, i) => {
+    const c = makeCardEl(card, { w: cw, h: ch, top: i * FU_OFFSET });
+    ghost.appendChild(c);
+  });
+
+  document.body.appendChild(ghost);
+  dragGhost = ghost;
+
+  render(); // show drag-src opacity
+
+  // global events
+  document.addEventListener('pointermove', onDragMove);
+  document.addEventListener('pointerup',   onDragEnd);
+  document.addEventListener('pointercancel', onDragCancel);
+}
+
+function onDragMove(e) {
+  if (!dragGhost) return;
+  e.preventDefault();
+  dragGhost.style.left = (e.clientX - dragOX) + 'px';
+  dragGhost.style.top  = (e.clientY - dragOY) + 'px';
+
+  // highlight drop target
+  const target = findDropTarget(e.clientX, e.clientY);
+  const targetEl = target ? getDropEl(target) : null;
+  if (targetEl !== currentDropEl) {
+    currentDropEl?.classList.remove('drop-over');
+    if (targetEl && isValidDrop(target)) {
+      targetEl.classList.add('drop-over');
+      currentDropEl = targetEl;
+    } else {
+      currentDropEl = null;
+    }
+  }
+}
+
+function onDragEnd(e) {
+  cleanup();
+  const target = findDropTarget(e.clientX, e.clientY);
+  if (target && isValidDrop(target)) {
+    applyDrop(target);
+  } else {
+    returnCards();
+  }
+  render();
+  checkWin();
+}
+
+function onDragCancel() {
+  cleanup();
+  returnCards();
+  render();
+}
+
+function cleanup() {
+  document.removeEventListener('pointermove', onDragMove);
+  document.removeEventListener('pointerup',   onDragEnd);
+  document.removeEventListener('pointercancel', onDragCancel);
+  currentDropEl?.classList.remove('drop-over');
+  currentDropEl = null;
+  if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+}
+
+// ── drop resolution ──
+function findDropTarget(x, y) {
+  // ghost has pointer-events:none so elementFromPoint looks through it
+  const el = document.elementFromPoint(x, y);
+  if (!el) return null;
+
+  let node = el;
+  while (node && node !== document.body) {
+    if (node.dataset.drop === 'foundation') return { type: 'foundation', fi: +node.dataset.fi };
+    if (node.dataset.drop === 'tableau')    return { type: 'tableau',    col: +node.dataset.col };
+    node = node.parentElement;
+  }
+  return null;
+}
+
+function getDropEl(target) {
+  if (target.type === 'foundation') return document.getElementById('f' + target.fi);
+  if (target.type === 'tableau') {
+    const cols = document.querySelectorAll('.tableau-col');
+    return cols[target.col]?.querySelector('.pile-slot') || null;
+  }
+  return null;
+}
+
+function isValidDrop(target) {
+  if (!dragCards || dragCards.length === 0) return false;
+  const top = dragCards[0];
+  if (target.type === 'foundation') {
+    if (dragCards.length !== 1) return false;
+    return canPlaceFoundation(top, foundations[target.fi]);
+  }
+  if (target.type === 'tableau') {
+    // don't drop on same column
+    if (dragSrc?.type === 'tableau' && dragSrc.col === target.col) return false;
+    const pile = tableau[target.col];
+    if (pile.length === 0) return top.rank === 12; // King only
+    return canStackTableau(top, pile.at(-1));
+  }
+  return false;
+}
+
+function applyDrop(target) {
+  if (target.type === 'foundation') {
+    foundations[target.fi].push(dragCards[0]);
+    addScore(20);
+  } else {
+    tableau[target.col].push(...dragCards);
+    addScore(10);
+  }
+  flipTopIfNeeded();
+  dragCards = null;
+  dragSrc   = null;
+}
+
+function returnCards() {
+  if (!dragCards || !dragSrc) return;
+  if (dragSrc.type === 'waste') {
+    waste.push(...dragCards);
+  } else {
+    tableau[dragSrc.col].splice(dragSrc.idx, 0, ...dragCards);
+  }
+  dragCards = null;
+  dragSrc   = null;
+}
+
+// ════════════════════════════════
+//  GAME LOGIC
+// ════════════════════════════════
+function drawCard() {
+  if (dragSrc) return; // ignore while dragging
+  if (stock.length === 0) {
+    stock = waste.reverse();
+    waste = [];
+  } else {
+    const c = stock.pop();
+    c.faceUp = true;
+    waste.push(c);
+    addScore(5);
+  }
+  render();
+}
+
+function canStackTableau(moving, target) {
+  return target.faceUp &&
+    SUIT_COLOR[moving.suit] !== SUIT_COLOR[target.suit] &&
+    moving.rank === target.rank - 1;
+}
+
+function canPlaceFoundation(card, pile) {
+  if (pile.length === 0) return card.rank === 0;
+  const top = pile.at(-1);
+  return top.suit === card.suit && card.rank === top.rank + 1;
+}
+
+function flipTopIfNeeded() {
+  for (let col = 0; col < 7; col++) {
+    const pile = tableau[col];
+    if (pile.length > 0 && !pile.at(-1).faceUp) {
+      pile.at(-1).faceUp = true;
+      addScore(5);
+    }
+  }
+}
+
+function addScore(n) { score += n; }
+
+function checkWin() {
+  if (foundations.reduce((s, f) => s + f.length, 0) === 52) {
+    document.getElementById('win-score').textContent = `スコア: ${score} 点`;
+    document.getElementById('win-overlay').style.display = 'flex';
+  }
+}
+
+// ════════════════════════════════
+//  SCREENS
+// ════════════════════════════════
+function startGame() {
+  document.getElementById('title-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display  = 'block';
+  newGame();
+}
+
+function newGame() {
+  document.getElementById('win-overlay').style.display = 'none';
+  initState();
+  render();
+}
+
+function goTitle() {
+  document.getElementById('win-overlay').style.display  = 'none';
+  document.getElementById('game-screen').style.display  = 'none';
+  document.getElementById('title-screen').style.display = 'flex';
+}
+</script>
+</body>
+</html>
